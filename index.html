@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>習字 名前手本カード作成</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@400;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Serif+JP:wght@400;600;700&family=Shippori+Mincho:wght@500;600;700&family=Yuji+Syuku&family=Yusei+Magic&family=Zen+Maru+Gothic:wght@400;500;700&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F7F1E3;
+    --ink:#111111;
+    --panel:#fffdf7;
+    --btn:#ffd9a0; --btn-sh:#e0a95f;
+    --btn2:#bfe3c9; --btn2-sh:#7fbf95;
+    --cut:#d9d3c2;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:"BIZ UDPGothic","Zen Maru Gothic",sans-serif;
+    background:var(--cream); color:#3d3a34;
+    -webkit-text-size-adjust:100%;
+  }
+
+  .app-head{ text-align:center; padding:14px 12px 2px; }
+  .app-head h1{
+    font-family:"Zen Maru Gothic",sans-serif; font-weight:700;
+    font-size:clamp(20px,3.2vw,30px); margin:0 0 2px;
+  }
+  .app-head p{ margin:0; font-size:clamp(11px,1.6vw,13px); color:#8a8474; }
+
+  .controls{
+    max-width:960px; margin:10px auto 0; background:var(--panel);
+    border:2px solid #ece3cf; border-radius:16px; padding:14px 16px;
+    box-shadow:0 3px 0 #e6dcc4;
+  }
+  .roster-row{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+  .roster-field{ flex:1 1 320px; display:flex; flex-direction:column; gap:4px; }
+  .roster-field > span{ font-weight:700; color:#6f6853; font-size:12px; }
+  textarea#roster{
+    font-family:inherit; font-size:15px; line-height:1.7;
+    padding:9px 11px; border:2px solid #e4dcc7; border-radius:10px;
+    background:#fff; color:#3d3a34; min-height:130px; resize:vertical; width:100%;
+  }
+  textarea#roster:focus{ outline:none; border-color:#e0b877; }
+  .hint-small{ font-size:11px; color:#a49b82; margin-top:2px; }
+
+  .opts{ flex:1 1 320px; display:flex; flex-direction:column; gap:12px; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+  .field{ display:flex; flex-direction:column; gap:4px; font-size:13px; }
+  .field > span{ font-weight:700; color:#6f6853; font-size:12px; }
+  .field select, .field input[type="range"]{ font-family:inherit; }
+  .field select{
+    font-size:15px; padding:7px 9px; border:2px solid #e4dcc7;
+    border-radius:10px; background:#fff; color:#3d3a34;
+  }
+  .field select:focus{ outline:none; border-color:#e0b877; }
+  input[type="range"]{ width:100%; accent-color:#e0a95f; }
+  .val{ font-weight:700; color:#b07a2e; font-size:12px; }
+  .chk{
+    display:flex; align-items:center; gap:6px; font-size:13px;
+    font-weight:700; color:#6f6853; cursor:pointer;
+  }
+  .chk input{ width:17px; height:17px; }
+
+  .tune{
+    margin-top:12px; padding-top:12px; border-top:1px dashed #e6ddc7;
+  }
+  .tune-title{ font-size:12px; font-weight:700; color:#9a8f73; margin-bottom:8px; }
+
+  .btns{ display:flex; justify-content:center; gap:12px; margin-top:14px; flex-wrap:wrap; }
+  button.act{
+    font-family:"Zen Maru Gothic",sans-serif; font-weight:700; font-size:16px;
+    padding:10px 24px; border:none; border-radius:14px; cursor:pointer; color:#5a4326;
+    background:var(--btn); box-shadow:0 4px 0 var(--btn-sh);
+    transition:transform .05s, box-shadow .05s;
+  }
+  button.act.green{ color:#2f5238; background:var(--btn2); box-shadow:0 4px 0 var(--btn2-sh); }
+  button.act:active{ transform:translateY(3px); box-shadow:0 1px 0 var(--btn-sh); }
+  button.act.green:active{ box-shadow:0 1px 0 var(--btn2-sh); }
+  .print-note{ text-align:center; font-size:12px; color:#948d78; margin-top:8px; }
+
+  /* ===== プレビュー ===== */
+  .preview-wrap{ margin:18px auto 40px; padding:0 10px; max-width:1040px; overflow:auto; text-align:center; }
+  .preview-scaler{ margin:0 auto; transform-origin:top center; transform:scale(var(--s,1)); }
+  .sheet{
+    background:#fff; position:relative; box-shadow:0 6px 26px rgba(0,0,0,.16);
+    margin:0 auto 22px; overflow:hidden;
+  }
+  .strips{
+    position:absolute; inset:0; display:flex; flex-direction:row-reverse;
+    justify-content:center; align-items:stretch;
+  }
+  .strip{ position:relative; flex:0 0 auto; }
+  .strip.cut{ border-left:0.25mm dashed var(--cut); border-right:0.25mm dashed var(--cut); }
+  .block{ position:absolute; left:0; right:0; display:flex; flex-direction:column; align-items:center; }
+  .ch{ display:flex; align-items:center; justify-content:center; line-height:1; color:var(--ink); }
+  .gap{ width:1mm; }
+  .sheet-hint{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#b7b09a; font-size:6mm; font-family:"Zen Maru Gothic",sans-serif;
+  }
+
+  /* ===== モーダル ===== */
+  .modal-bg{ position:fixed; inset:0; background:rgba(60,55,45,.45); display:none; align-items:center; justify-content:center; z-index:1000; }
+  .modal-bg.show{ display:flex; }
+  .modal{ background:#fff; border-radius:16px; padding:22px 26px; text-align:center; max-width:82vw; box-shadow:0 10px 30px rgba(0,0,0,.25); font-family:"Zen Maru Gothic",sans-serif; }
+  .modal p{ margin:0 0 16px; font-size:16px; color:#5a5548; }
+  .modal button{ font-family:inherit; font-weight:700; font-size:15px; padding:8px 26px; border:none; border-radius:12px; cursor:pointer; background:var(--btn); box-shadow:0 3px 0 var(--btn-sh); color:#5a4326; }
+
+  @media print{
+    html,body{ background:#fff; }
+    .app-head,.controls,.print-note{ display:none !important; }
+    .preview-wrap{ margin:0 !important; padding:0 !important; max-width:none !important; overflow:visible !important; }
+    .preview-scaler{ transform:none !important; width:auto !important; height:auto !important; margin:0 !important; }
+    .sheet{ box-shadow:none !important; margin:0 !important; }
+    .sheet.page-break{ page-break-after:always; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-head">
+  <h1>習字 名前手本カード作成</h1>
+  <p>名簿に学年と名前を入れると、B4に縦書きの名前手本が右から順に並びます。切り離してラミネートすれば一人ずつの手本になります。</p>
+</div>
+
+<div class="controls">
+  <div class="roster-row">
+    <label class="roster-field">
+      <span>名簿（1行に1人・例：3年 山田 太郎）</span>
+      <textarea id="roster" spellcheck="false" placeholder="3年 山田 太郎&#10;3年 佐藤 花子&#10;3年 鈴木 一郎">3年 山田 太郎
+3年 佐藤 花子
+3年 鈴木 一郎</textarea>
+      <span class="hint-small">※ 最初のことばが学年、そのあとが名前です。名字と名前の間はスペースで少し空きます。</span>
+    </label>
+
+    <div class="opts">
+      <div class="grid2">
+        <label class="field"><span>フォント</span><select id="font"></select></label>
+        <label class="field"><span>太さ</span>
+          <select id="weight">
+            <option value="thin">細字</option>
+            <option value="mid" selected>中字</option>
+            <option value="bold">太字</option>
+          </select>
+        </label>
+        <label class="field"><span>大きさ <span class="val" id="sizeVal"></span></span>
+          <input type="range" id="size" min="8" max="28" step="1" value="16">
+        </label>
+        <label class="field"><span>用紙</span>
+          <select id="paper">
+            <option value="b4" selected>B4（たて）</option>
+            <option value="a4">A4（たて）</option>
+          </select>
+        </label>
+        <label class="field"><span>たんざくの幅</span>
+          <select id="stripMode">
+            <option value="auto" selected>おまかせ（1ページに）</option>
+            <option value="45">固定 45mm</option>
+            <option value="55">固定 55mm</option>
+            <option value="65">固定 65mm</option>
+          </select>
+        </label>
+        <label class="field" style="justify-content:flex-end;">
+          <label class="chk"><input type="checkbox" id="cut" checked>切り取り線を表示</label>
+          <label class="chk" style="margin-top:6px;"><input type="checkbox" id="kanji" checked>数字を漢数字にする</label>
+        </label>
+      </div>
+
+      <div class="tune">
+        <div class="tune-title">微調節（位置）</div>
+        <div class="grid2">
+          <label class="field"><span>学年の位置（上下） <span class="val" id="gradeVal"></span></span>
+            <input type="range" id="gradePos" min="0" max="25" step="1" value="5">
+          </label>
+          <label class="field"><span>名前の位置（上下） <span class="val" id="nameVal"></span></span>
+            <input type="range" id="namePos" min="32" max="60" step="1" value="45">
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="btns">
+    <button class="act" id="makeBtn">作成</button>
+    <button class="act green" id="printBtn">印刷する</button>
+  </div>
+  <div class="print-note">※ 印刷は用紙サイズ「B4」・倍率「100%（実際のサイズ）」でぴったり収まります。名前が長い人は自動で少し小さくなります。</div>
+</div>
+
+<div class="preview-wrap" id="previewWrap">
+  <div class="preview-scaler" id="scaler"></div>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal"><p id="modalMsg"></p><button id="modalOk">OK</button></div>
+</div>
+
+<style id="pageStyle">@page{ size:257mm 364mm; margin:0; }</style>
+
+<script>
+/* ===================== 定数 ===================== */
+var MARGIN_TOPBOT = 8;   // 用紙 上下余白(mm)
+var MARGIN_SIDE   = 6;   // 用紙 左右余白(mm)
+var NAME_GAP_RATIO= 0.4; // 名字と名前のあいだ（文字比）
+var MIN_BOTTOM    = 0.07;// 下の「空け」最小割合
+var WIDTH_RATIO   = 0.6; // 文字幅／たんざく幅
+var AUTO_MAX_STRIP= 68;  // おまかせ時の最大たんざく幅(mm)
+
+var PAPERS = {
+  b4:{ w:257, h:364 },
+  a4:{ w:210, h:297 }
+};
+
+var WEIGHTS = {
+  thin:{ weight:400, stroke:0.0 },
+  mid: { weight:600, stroke:0.12 },
+  bold:{ weight:700, stroke:0.30 }
+};
+
+var FONT_OPTIONS = {
+  kyokasho:{ label:'教科書体', stack:'"UD デジタル 教科書体 NK-R","UD Digi Kyokasho NK-R",YuKyokasho,"Yu Kyokasho",Kyokasho,"Klee One","Shippori Mincho","Yu Mincho","MS PMincho",serif' },
+  kaisho:{ label:'楷書（筆）', stack:'"Yuji Syuku","Hiragino Mincho ProN","Yu Mincho","Shippori Mincho","MS PMincho",serif' },
+  mincho:{ label:'明朝体', stack:'"Yu Mincho",YuMincho,"Hiragino Mincho ProN","Noto Serif JP","Shippori Mincho","MS PMincho",serif' },
+  gothic:{ label:'ゴシック体', stack:'"Yu Gothic",YuGothic,"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,"MS PGothic",sans-serif' },
+  maru:{ label:'丸ゴシック体', stack:'"Hiragino Maru Gothic ProN","Kosugi Maru","M PLUS Rounded 1c",Meiryo,sans-serif' },
+  handwriting:{ label:'手書き風', stack:'"Yusei Magic",YuKyokasho,"Klee One","Hiragino Maru Gothic ProN",sans-serif' }
+};
+
+/* ===================== 純粋ロジック（テスト対象） ===================== */
+function toKanjiNumerals(str){
+  var map = {'0':'〇','1':'一','2':'二','3':'三','4':'四','5':'五','6':'六','7':'七','8':'八','9':'九',
+             '０':'〇','１':'一','２':'二','３':'三','４':'四','５':'五','６':'六','７':'七','８':'八','９':'九'};
+  var out=''; var arr=Array.from(str);
+  for(var i=0;i<arr.length;i++){ out += (map[arr[i]]!==undefined)? map[arr[i]] : arr[i]; }
+  return out;
+}
+
+function isGradeToken(tok){
+  return /年$/.test(tok) || /^[0-9０-９一二三四五六七八九十]+$/.test(tok);
+}
+
+// 1行 → { gradeChars:[...], nameTokens:[[...],[...]] }  （名前が無ければnull）
+function parseRosterLine(line, toKanji){
+  if(line==null) return null;
+  var raw = line.replace(/\u3000/g,' ').trim(); // 全角スペースも半角に統一して扱う
+  if(!raw) return null;
+
+  var grade = '';
+  var namePart = raw;
+
+  var sp = raw.indexOf(' ');
+  if(sp>0){
+    var first = raw.slice(0,sp);
+    var rest = raw.slice(sp+1).trim();
+    if(isGradeToken(first) && rest){
+      grade = first;
+      namePart = rest;
+    }
+  }
+
+  if(grade){
+    if(toKanji) grade = toKanjiNumerals(grade);
+    if(!/年$/.test(grade)) grade = grade + '年';
+  }
+
+  var tokens = namePart.split(/\s+/).filter(function(t){ return t.length>0; });
+  var nameTokens = tokens.map(function(t){ return Array.from(t); });
+
+  if(nameTokens.length===0) return null;
+
+  return { gradeChars: Array.from(grade), nameTokens: nameTokens };
+}
+
+function parseRoster(text, toKanji){
+  var lines = String(text||'').split(/\r?\n/);
+  var out=[];
+  for(var i=0;i<lines.length;i++){
+    var e = parseRosterLine(lines[i], toKanji);
+    if(e) out.push(e);
+  }
+  return out;
+}
+
+// 1たんざくの配置・文字サイズ（用紙内に必ず収める）
+function computeStripLayout(entry, o){
+  var gradeCount = entry.gradeChars.length;
+  var nameCharCount = 0, i;
+  for(i=0;i<entry.nameTokens.length;i++) nameCharCount += entry.nameTokens[i].length;
+  var nameUnits = nameCharCount + Math.max(0, entry.nameTokens.length-1)*NAME_GAP_RATIO;
+
+  var widthCap = o.stripW * WIDTH_RATIO;
+  var nameStartY = o.nameStartFrac * o.printableH;
+  var vCap = nameUnits>0 ? (o.printableH*(1-MIN_BOTTOM) - nameStartY)/nameUnits : o.sizeMm;
+  var size = Math.min(o.sizeMm, widthCap, vCap);
+  if(size < 3) size = 3;
+
+  var gradeSize = size; // 学年も同じ大きさ
+  var gradeTopY = o.gradeTopFrac * o.printableH;
+  // 学年が名前開始位置に食い込まないよう軽くクランプ
+  var gradeBottom = gradeTopY + gradeCount*gradeSize;
+  if(gradeCount>0 && gradeBottom > nameStartY - gradeSize*0.2){
+    gradeTopY = Math.max(0, nameStartY - gradeSize*0.2 - gradeCount*gradeSize);
+  }
+
+  return {
+    size:size, gradeSize:gradeSize,
+    gradeTopY:gradeTopY, nameStartY:nameStartY,
+    nameUnits:nameUnits, nameCharCount:nameCharCount, gradeCount:gradeCount
+  };
+}
+
+/* ===================== UI 初期化 ===================== */
+function el(id){ return document.getElementById(id); }
+
+function initFonts(){
+  var sel = el('font');
+  for(var key in FONT_OPTIONS){
+    var o=document.createElement('option');
+    o.value=key; o.textContent=FONT_OPTIONS[key].label;
+    if(key==='kyokasho') o.selected=true;
+    sel.appendChild(o);
+  }
+}
+
+function currentOpts(){
+  var paper = PAPERS[el('paper').value] || PAPERS.b4;
+  return {
+    paper: paper,
+    printableH: paper.h - MARGIN_TOPBOT*2,
+    printableW: paper.w - MARGIN_SIDE*2,
+    sizeMm: parseInt(el('size').value,10),
+    gradeTopFrac: parseInt(el('gradePos').value,10)/100,
+    nameStartFrac: parseInt(el('namePos').value,10)/100,
+    fontStack: (FONT_OPTIONS[el('font').value]||FONT_OPTIONS.kyokasho).stack,
+    weight: WEIGHTS[el('weight').value]||WEIGHTS.mid,
+    stripMode: el('stripMode').value,
+    showCut: el('cut').checked,
+    toKanji: el('kanji').checked
+  };
+}
+
+/* 名簿をページに割り振り（右→左） */
+function planPages(entries, o){
+  var usableW = o.printableW;
+  var pages = [];
+  if(o.stripMode==='auto'){
+    var n = Math.max(1, entries.length);
+    var stripW = Math.min(usableW / n, AUTO_MAX_STRIP);
+    pages.push({ entries: entries.slice(), stripW: stripW });
+  } else {
+    var fixedW = parseInt(o.stripMode,10);
+    var perPage = Math.max(1, Math.floor(usableW / fixedW));
+    for(var i=0;i<entries.length;i+=perPage){
+      pages.push({ entries: entries.slice(i, i+perPage), stripW: fixedW });
+    }
+    if(pages.length===0) pages.push({ entries:[], stripW: fixedW });
+  }
+  return pages;
+}
+
+function setPageStyle(p){
+  el('pageStyle').textContent = '@page{ size:'+p.w+'mm '+p.h+'mm; margin:0; }';
+}
+
+/* ===================== 描画 ===================== */
+function buildChar(ch, sizeMm, fontStack, weight, stroke){
+  var d = document.createElement('div');
+  d.className = 'ch';
+  d.textContent = ch;
+  d.style.width = sizeMm+'mm';
+  d.style.height = sizeMm+'mm';
+  d.style.fontSize = sizeMm+'mm';
+  d.style.fontFamily = fontStack;
+  d.style.fontWeight = weight.weight;
+  if(weight.stroke>0){
+    var s = weight.stroke+'mm';
+    d.style.webkitTextStroke = s+' var(--ink)';
+    d.style.textStroke = s+' var(--ink)';
+  }
+  return d;
+}
+
+function buildStrip(entry, stripW, o){
+  var lay = computeStripLayout(entry, { stripW:stripW, printableH:o.printableH, sizeMm:o.sizeMm, gradeTopFrac:o.gradeTopFrac, nameStartFrac:o.nameStartFrac });
+
+  var strip = document.createElement('div');
+  strip.className = 'strip' + (o.showCut ? ' cut' : '');
+  strip.style.width = stripW+'mm';
+
+  // 学年ブロック（上部）
+  if(entry.gradeChars.length){
+    var gb = document.createElement('div');
+    gb.className='block';
+    gb.style.top = lay.gradeTopY+'mm';
+    for(var i=0;i<entry.gradeChars.length;i++){
+      gb.appendChild(buildChar(entry.gradeChars[i], lay.gradeSize, o.fontStack, o.weight, o.weight));
+    }
+    strip.appendChild(gb);
+  }
+
+  // 名前ブロック（高さ半分よりやや上から）
+  var nb = document.createElement('div');
+  nb.className='block';
+  nb.style.top = lay.nameStartY+'mm';
+  for(var t=0;t<entry.nameTokens.length;t++){
+    if(t>0){
+      var g=document.createElement('div');
+      g.className='gap';
+      g.style.height = (lay.size*NAME_GAP_RATIO)+'mm';
+      nb.appendChild(g);
+    }
+    var toks = entry.nameTokens[t];
+    for(var c=0;c<toks.length;c++){
+      nb.appendChild(buildChar(toks[c], lay.size, o.fontStack, o.weight, o.weight));
+    }
+  }
+  strip.appendChild(nb);
+
+  return strip;
+}
+
+function render(){
+  var o = currentOpts();
+  setPageStyle(o.paper);
+  el('sizeVal').textContent = o.sizeMm+'mm';
+  el('gradeVal').textContent = el('gradePos').value+'%';
+  el('nameVal').textContent = el('namePos').value+'%';
+
+  var entries = parseRoster(el('roster').value, o.toKanji);
+  var scaler = el('scaler');
+  scaler.innerHTML = '';
+
+  if(entries.length===0){
+    var sheet0 = makeSheet(o.paper, false);
+    var hint=document.createElement('div');
+    hint.className='sheet-hint';
+    hint.textContent='名簿に名前を いれてください';
+    sheet0.appendChild(hint);
+    scaler.appendChild(sheet0);
+    updatePreviewScale();
+    return;
+  }
+
+  var pages = planPages(entries, o);
+  for(var p=0;p<pages.length;p++){
+    var pageBreak = (p < pages.length-1);
+    var sheet = makeSheet(o.paper, pageBreak);
+    var strips = document.createElement('div');
+    strips.className='strips';
+    strips.style.padding = MARGIN_TOPBOT+'mm '+MARGIN_SIDE+'mm';
+    for(var k=0;k<pages[p].entries.length;k++){
+      strips.appendChild(buildStrip(pages[p].entries[k], pages[p].stripW, o));
+    }
+    sheet.appendChild(strips);
+    scaler.appendChild(sheet);
+  }
+  updatePreviewScale();
+}
+
+function makeSheet(paper, pageBreak){
+  var sheet=document.createElement('div');
+  sheet.className='sheet' + (pageBreak?' page-break':'');
+  sheet.style.width=paper.w+'mm';
+  sheet.style.height=paper.h+'mm';
+  return sheet;
+}
+
+/* プレビュー縮小（印刷は原寸） */
+function updatePreviewScale(){
+  var paper = PAPERS[el('paper').value] || PAPERS.b4;
+  var pxPerMm = 96/25.4;
+  var sheetWpx = paper.w * pxPerMm;
+  var wrap = el('previewWrap');
+  var avail = wrap.clientWidth - 4;
+  var scale = Math.min(avail / sheetWpx, 1);
+  if(!isFinite(scale)||scale<=0) scale=1;
+  var scaler = el('scaler');
+  scaler.style.width = sheetWpx+'px';
+  scaler.style.setProperty('--s', scale);
+
+  var sheets = scaler.querySelectorAll('.sheet');
+  var totalHpx = 0;
+  for(var i=0;i<sheets.length;i++){
+    totalHpx += paper.h*pxPerMm + 22; // margin-bottom分
+  }
+  scaler.style.height = (totalHpx*scale)+'px';
+}
+
+/* ===================== モーダル・印刷 ===================== */
+function showModal(m){ el('modalMsg').textContent=m; el('modalBg').classList.add('show'); }
+function hideModal(){ el('modalBg').classList.remove('show'); }
+
+function doPrint(){
+  var entries = parseRoster(el('roster').value, el('kanji').checked);
+  if(entries.length===0){ showModal('名簿に名前を いれてください'); return; }
+  var go=function(){ window.print(); };
+  if(document.fonts && document.fonts.ready){ document.fonts.ready.then(go).catch(go); }
+  else go();
+}
+
+/* ===================== 起動 ===================== */
+function bind(){
+  var live=['roster','font','weight','size','paper','stripMode','cut','kanji','gradePos','namePos'];
+  for(var i=0;i<live.length;i++){
+    var e=el(live[i]);
+    e.addEventListener('input', render);
+    e.addEventListener('change', render);
+  }
+  el('makeBtn').addEventListener('click', render);
+  el('printBtn').addEventListener('click', doPrint);
+  el('modalOk').addEventListener('click', hideModal);
+  el('modalBg').addEventListener('click', function(ev){ if(ev.target===el('modalBg')) hideModal(); });
+  window.addEventListener('resize', updatePreviewScale);
+}
+
+if(typeof document!=='undefined' && document.getElementById){
+  initFonts();
+  bind();
+  render();
+}
+
+if(typeof module!=='undefined' && module.exports){
+  module.exports = { parseRosterLine, parseRoster, toKanjiNumerals, isGradeToken,
+                     computeStripLayout, planPages, PAPERS, NAME_GAP_RATIO, MIN_BOTTOM, WIDTH_RATIO, AUTO_MAX_STRIP,
+                     MARGIN_TOPBOT, MARGIN_SIDE };
+}
+</script>
+</body>
+</html>
