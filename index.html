@@ -171,13 +171,16 @@
       </div>
 
       <div class="tune">
-        <div class="tune-title">微調節（位置）</div>
+        <div class="tune-title">微調節（位置・間隔）</div>
         <div class="grid2">
           <label class="field"><span>学年の位置（上下） <span class="val" id="gradeVal"></span></span>
             <input type="range" id="gradePos" min="0" max="25" step="1" value="5">
           </label>
           <label class="field"><span>名前の位置（上下） <span class="val" id="nameVal"></span></span>
             <input type="range" id="namePos" min="32" max="60" step="1" value="45">
+          </label>
+          <label class="field"><span>文字の間隔 <span class="val" id="spacingVal"></span></span>
+            <input type="range" id="spacing" min="90" max="170" step="5" value="100">
           </label>
         </div>
       </div>
@@ -287,10 +290,12 @@ function parseRoster(text, toKanji){
 
 // 1たんざくの配置・文字サイズ（用紙内に必ず収める）
 function computeStripLayout(entry, o){
+  var lf = o.lineFactor || 1;           // 文字の間隔（字送り倍率）
   var gradeCount = entry.gradeChars.length;
   var nameCharCount = 0, i;
   for(i=0;i<entry.nameTokens.length;i++) nameCharCount += entry.nameTokens[i].length;
-  var nameUnits = nameCharCount + Math.max(0, entry.nameTokens.length-1)*NAME_GAP_RATIO;
+  // 名前ブロックの総高さ（マス比）：文字は間隔ぶん送り、名字と名前の間はさらに空ける
+  var nameUnits = nameCharCount*lf + Math.max(0, entry.nameTokens.length-1)*NAME_GAP_RATIO;
 
   var widthCap = o.stripW * WIDTH_RATIO;
   var nameStartY = o.nameStartFrac * o.printableH;
@@ -300,14 +305,15 @@ function computeStripLayout(entry, o){
 
   var gradeSize = size; // 学年も同じ大きさ
   var gradeTopY = o.gradeTopFrac * o.printableH;
-  // 学年が名前開始位置に食い込まないよう軽くクランプ
-  var gradeBottom = gradeTopY + gradeCount*gradeSize;
+  // 学年が名前開始位置に食い込まないよう軽くクランプ（学年も間隔ぶん送る）
+  var gradeBlockH = gradeCount*gradeSize*lf;
+  var gradeBottom = gradeTopY + gradeBlockH;
   if(gradeCount>0 && gradeBottom > nameStartY - gradeSize*0.2){
-    gradeTopY = Math.max(0, nameStartY - gradeSize*0.2 - gradeCount*gradeSize);
+    gradeTopY = Math.max(0, nameStartY - gradeSize*0.2 - gradeBlockH);
   }
 
   return {
-    size:size, gradeSize:gradeSize,
+    size:size, gradeSize:gradeSize, lineFactor:lf,
     gradeTopY:gradeTopY, nameStartY:nameStartY,
     nameUnits:nameUnits, nameCharCount:nameCharCount, gradeCount:gradeCount
   };
@@ -333,6 +339,7 @@ function currentOpts(){
     printableH: paper.h - MARGIN_TOPBOT*2,
     printableW: paper.w - MARGIN_SIDE*2,
     sizeMm: parseInt(el('size').value,10),
+    lineFactor: parseInt(el('spacing').value,10)/100,
     gradeTopFrac: parseInt(el('gradePos').value,10)/100,
     nameStartFrac: parseInt(el('namePos').value,10)/100,
     fontStack: (FONT_OPTIONS[el('font').value]||FONT_OPTIONS.kyokasho).stack,
@@ -367,12 +374,12 @@ function setPageStyle(p){
 }
 
 /* ===================== 描画 ===================== */
-function buildChar(ch, sizeMm, fontStack, weight, stroke){
+function buildChar(ch, sizeMm, fontStack, weight, lineFactor){
   var d = document.createElement('div');
   d.className = 'ch';
   d.textContent = ch;
   d.style.width = sizeMm+'mm';
-  d.style.height = sizeMm+'mm';
+  d.style.height = (sizeMm*(lineFactor||1))+'mm';
   d.style.fontSize = sizeMm+'mm';
   d.style.fontFamily = fontStack;
   d.style.fontWeight = weight.weight;
@@ -385,7 +392,7 @@ function buildChar(ch, sizeMm, fontStack, weight, stroke){
 }
 
 function buildStrip(entry, stripW, o){
-  var lay = computeStripLayout(entry, { stripW:stripW, printableH:o.printableH, sizeMm:o.sizeMm, gradeTopFrac:o.gradeTopFrac, nameStartFrac:o.nameStartFrac });
+  var lay = computeStripLayout(entry, { stripW:stripW, printableH:o.printableH, sizeMm:o.sizeMm, lineFactor:o.lineFactor, gradeTopFrac:o.gradeTopFrac, nameStartFrac:o.nameStartFrac });
 
   var strip = document.createElement('div');
   strip.className = 'strip' + (o.showCut ? ' cut' : '');
@@ -397,7 +404,7 @@ function buildStrip(entry, stripW, o){
     gb.className='block';
     gb.style.top = lay.gradeTopY+'mm';
     for(var i=0;i<entry.gradeChars.length;i++){
-      gb.appendChild(buildChar(entry.gradeChars[i], lay.gradeSize, o.fontStack, o.weight, o.weight));
+      gb.appendChild(buildChar(entry.gradeChars[i], lay.gradeSize, o.fontStack, o.weight, lay.lineFactor));
     }
     strip.appendChild(gb);
   }
@@ -415,7 +422,7 @@ function buildStrip(entry, stripW, o){
     }
     var toks = entry.nameTokens[t];
     for(var c=0;c<toks.length;c++){
-      nb.appendChild(buildChar(toks[c], lay.size, o.fontStack, o.weight, o.weight));
+      nb.appendChild(buildChar(toks[c], lay.size, o.fontStack, o.weight, lay.lineFactor));
     }
   }
   strip.appendChild(nb);
@@ -427,6 +434,7 @@ function render(){
   var o = currentOpts();
   setPageStyle(o.paper);
   el('sizeVal').textContent = o.sizeMm+'mm';
+  el('spacingVal').textContent = el('spacing').value+'%';
   el('gradeVal').textContent = el('gradePos').value+'%';
   el('nameVal').textContent = el('namePos').value+'%';
 
@@ -504,7 +512,7 @@ function doPrint(){
 
 /* ===================== 起動 ===================== */
 function bind(){
-  var live=['roster','font','weight','size','paper','stripMode','cut','kanji','gradePos','namePos'];
+  var live=['roster','font','weight','size','spacing','paper','stripMode','cut','kanji','gradePos','namePos'];
   for(var i=0;i<live.length;i++){
     var e=el(live[i]);
     e.addEventListener('input', render);
