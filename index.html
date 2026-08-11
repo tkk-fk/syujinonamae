@@ -46,6 +46,14 @@
   }
   textarea#roster:focus{ outline:none; border-color:#e0b877; }
   .hint-small{ font-size:11px; color:#a49b82; margin-top:2px; }
+  .common-grade-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .mini{ display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#6f6853; }
+  .mini input{
+    font-family:inherit; font-size:14px; width:90px; padding:5px 8px;
+    border:2px solid #e4dcc7; border-radius:8px; background:#fff; color:#3d3a34;
+  }
+  .mini input:focus{ outline:none; border-color:#e0b877; }
+  .mini-hint{ font-size:11px; color:#a49b82; flex:1 1 200px; }
 
   .opts{ flex:1 1 320px; display:flex; flex-direction:column; gap:12px; }
   .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
@@ -93,6 +101,7 @@
     position:absolute; inset:0; display:flex; flex-direction:row-reverse;
     justify-content:center; align-items:stretch;
   }
+  .strips.ltr{ flex-direction:row; }
   .strip{ position:relative; flex:0 0 auto; }
   .strip.cut{ border-left:0.25mm dashed var(--cut); border-right:0.25mm dashed var(--cut); }
   .block{ position:absolute; left:0; right:0; display:flex; flex-direction:column; align-items:center; }
@@ -130,14 +139,26 @@
 <div class="controls">
   <div class="roster-row">
     <label class="roster-field">
-      <span>名簿（1行に1人・例：3年 山田 太郎）</span>
-      <textarea id="roster" spellcheck="false" placeholder="3年 山田 太郎&#10;3年 佐藤 花子&#10;3年 鈴木 一郎">3年 山田 太郎
-3年 佐藤 花子
-3年 鈴木 一郎</textarea>
-      <span class="hint-small">※ 最初のことばが学年、そのあとが名前です。名字と名前の間はスペースで少し空きます。</span>
+      <span>名簿（1行に1人・名前だけでOK）</span>
+      <div class="common-grade-row">
+        <label class="mini">学年（全員共通）
+          <input type="text" id="commonGrade" value="3年" placeholder="3年">
+        </label>
+        <span class="mini-hint">空欄も可。行のはじめに学年を書くと、その人だけ上書きされます（例：4年 佐藤 花子）</span>
+      </div>
+      <textarea id="roster" spellcheck="false" placeholder="山田 太郎&#10;佐藤 花子&#10;鈴木 一郎">山田 太郎
+佐藤 花子
+鈴木 一郎</textarea>
+      <span class="hint-small">※ 名字と名前の間はスペースで少し空きます。特別支援学級など学年がバラバラのときは、共通学年を空にして各行に学年を書いてもOKです。</span>
     </label>
 
     <div class="opts">
+      <label class="field"><span>作成モード</span>
+        <select id="mode">
+          <option value="card" selected>手本カード（切り離し用）</option>
+          <option value="practice">一人一枚（練習用）</option>
+        </select>
+      </label>
       <div class="grid2">
         <label class="field"><span>フォント</span><select id="font"></select></label>
         <label class="field"><span>太さ</span>
@@ -156,16 +177,25 @@
             <option value="a4">A4（たて）</option>
           </select>
         </label>
-        <label class="field"><span>たんざくの幅</span>
+        <label class="field" id="field-strip"><span>たんざくの幅</span>
           <select id="stripMode">
-            <option value="auto" selected>おまかせ（1ページに）</option>
-            <option value="45">固定 45mm</option>
+            <option value="35">固定 35mm</option>
+            <option value="45" selected>固定 45mm</option>
             <option value="55">固定 55mm</option>
             <option value="65">固定 65mm</option>
           </select>
         </label>
+        <label class="field" id="field-practice" style="display:none;"><span>練習の行数</span>
+          <select id="practiceCols">
+            <option value="1">1行</option>
+            <option value="2">2行</option>
+            <option value="3" selected>3行</option>
+            <option value="4">4行</option>
+            <option value="5">5行</option>
+          </select>
+        </label>
         <label class="field" style="justify-content:flex-end;">
-          <label class="chk"><input type="checkbox" id="cut" checked>切り取り線を表示</label>
+          <label class="chk"><input type="checkbox" id="cut" checked><span id="cutLabel">切り取り線を表示</span></label>
           <label class="chk" style="margin-top:6px;"><input type="checkbox" id="kanji" checked>数字を漢数字にする</label>
         </label>
       </div>
@@ -246,13 +276,23 @@ function isGradeToken(tok){
   return /年$/.test(tok) || /^[0-9０-９一二三四五六七八九十]+$/.test(tok);
 }
 
-// 1行 → { gradeChars:[...], nameTokens:[[...],[...]] }  （名前が無ければnull）
-function parseRosterLine(line, toKanji){
+// 学年文字列を整える（漢数字化・「年」補完）
+function normalizeGrade(str, toKanji){
+  str = (str||'').trim();
+  if(!str) return '';
+  if(toKanji) str = toKanjiNumerals(str);
+  if(!/年$/.test(str)) str = str + '年';
+  return str;
+}
+
+// 1行 → { gradeChars:[...], nameTokens:[[...],[...]] }
+// 行に学年があればそれを使い、無ければ commonGrade（全員共通）を使う
+function parseRosterLine(line, toKanji, commonGrade){
   if(line==null) return null;
-  var raw = line.replace(/\u3000/g,' ').trim(); // 全角スペースも半角に統一して扱う
+  var raw = line.replace(/\u3000/g,' ').trim(); // 全角スペースも半角に統一
   if(!raw) return null;
 
-  var grade = '';
+  var lineGrade = null;
   var namePart = raw;
 
   var sp = raw.indexOf(' ');
@@ -260,29 +300,28 @@ function parseRosterLine(line, toKanji){
     var first = raw.slice(0,sp);
     var rest = raw.slice(sp+1).trim();
     if(isGradeToken(first) && rest){
-      grade = first;
+      lineGrade = first;   // その行だけ上書き
       namePart = rest;
     }
   }
 
-  if(grade){
-    if(toKanji) grade = toKanjiNumerals(grade);
-    if(!/年$/.test(grade)) grade = grade + '年';
-  }
+  var gradeStr = (lineGrade!==null)
+    ? normalizeGrade(lineGrade, toKanji)
+    : normalizeGrade(commonGrade, toKanji);
 
   var tokens = namePart.split(/\s+/).filter(function(t){ return t.length>0; });
   var nameTokens = tokens.map(function(t){ return Array.from(t); });
 
   if(nameTokens.length===0) return null;
 
-  return { gradeChars: Array.from(grade), nameTokens: nameTokens };
+  return { gradeChars: Array.from(gradeStr), nameTokens: nameTokens };
 }
 
-function parseRoster(text, toKanji){
+function parseRoster(text, toKanji, commonGrade){
   var lines = String(text||'').split(/\r?\n/);
   var out=[];
   for(var i=0;i<lines.length;i++){
-    var e = parseRosterLine(lines[i], toKanji);
+    var e = parseRosterLine(lines[i], toKanji, commonGrade);
     if(e) out.push(e);
   }
   return out;
@@ -345,8 +384,11 @@ function currentOpts(){
     fontStack: (FONT_OPTIONS[el('font').value]||FONT_OPTIONS.kyokasho).stack,
     weight: WEIGHTS[el('weight').value]||WEIGHTS.mid,
     stripMode: el('stripMode').value,
+    mode: el('mode').value,
+    practiceCols: parseInt(el('practiceCols').value,10),
     showCut: el('cut').checked,
-    toKanji: el('kanji').checked
+    toKanji: el('kanji').checked,
+    commonGrade: el('commonGrade').value
   };
 }
 
@@ -430,15 +472,45 @@ function buildStrip(entry, stripW, o){
   return strip;
 }
 
+// 練習用の空きたんざく（子どもが筆で書くスペース）
+function buildBlankStrip(colW, o){
+  var s=document.createElement('div');
+  s.className='strip'+(o.showCut?' cut':'');
+  s.style.width=colW+'mm';
+  return s;
+}
+
+// 一人一枚（練習用）：左に手本、右に練習の行
+function buildPracticeSheet(entry, o, pageBreak){
+  var sheet = makeSheet(o.paper, pageBreak);
+  var cont = document.createElement('div');
+  cont.className = 'strips ltr';          // 左→右（手本を左に）
+  cont.style.padding = MARGIN_TOPBOT+'mm '+MARGIN_SIDE+'mm';
+
+  var cols = 1 + Math.max(0, o.practiceCols);
+  var colW = o.printableW / cols;
+
+  // 左端：手本
+  cont.appendChild(buildStrip(entry, colW, o));
+  // 右側：練習の行（空き）
+  for(var i=0;i<o.practiceCols;i++){
+    cont.appendChild(buildBlankStrip(colW, o));
+  }
+
+  sheet.appendChild(cont);
+  return sheet;
+}
+
 function render(){
   var o = currentOpts();
   setPageStyle(o.paper);
+  updateModeUI(o.mode);
   el('sizeVal').textContent = o.sizeMm+'mm';
   el('spacingVal').textContent = el('spacing').value+'%';
   el('gradeVal').textContent = el('gradePos').value+'%';
   el('nameVal').textContent = el('namePos').value+'%';
 
-  var entries = parseRoster(el('roster').value, o.toKanji);
+  var entries = parseRoster(el('roster').value, o.toKanji, o.commonGrade);
   var scaler = el('scaler');
   scaler.innerHTML = '';
 
@@ -449,6 +521,16 @@ function render(){
     hint.textContent='名簿に名前を いれてください';
     sheet0.appendChild(hint);
     scaler.appendChild(sheet0);
+    updatePreviewScale();
+    return;
+  }
+
+  if(o.mode==='practice'){
+    // 一人一枚（練習用）：1人＝1ページ
+    for(var i=0;i<entries.length;i++){
+      var pb = (i < entries.length-1);
+      scaler.appendChild(buildPracticeSheet(entries[i], o, pb));
+    }
     updatePreviewScale();
     return;
   }
@@ -467,6 +549,14 @@ function render(){
     scaler.appendChild(sheet);
   }
   updatePreviewScale();
+}
+
+// モードに応じて表示する項目・ラベルを切り替え
+function updateModeUI(mode){
+  var isPractice = (mode==='practice');
+  el('field-strip').style.display = isPractice ? 'none' : '';
+  el('field-practice').style.display = isPractice ? '' : 'none';
+  el('cutLabel').textContent = isPractice ? '区切り線を表示' : '切り取り線を表示';
 }
 
 function makeSheet(paper, pageBreak){
@@ -503,7 +593,7 @@ function showModal(m){ el('modalMsg').textContent=m; el('modalBg').classList.add
 function hideModal(){ el('modalBg').classList.remove('show'); }
 
 function doPrint(){
-  var entries = parseRoster(el('roster').value, el('kanji').checked);
+  var entries = parseRoster(el('roster').value, el('kanji').checked, el('commonGrade').value);
   if(entries.length===0){ showModal('名簿に名前を いれてください'); return; }
   var go=function(){ window.print(); };
   if(document.fonts && document.fonts.ready){ document.fonts.ready.then(go).catch(go); }
@@ -512,7 +602,7 @@ function doPrint(){
 
 /* ===================== 起動 ===================== */
 function bind(){
-  var live=['roster','font','weight','size','spacing','paper','stripMode','cut','kanji','gradePos','namePos'];
+  var live=['roster','commonGrade','mode','font','weight','size','spacing','paper','stripMode','practiceCols','cut','kanji','gradePos','namePos'];
   for(var i=0;i<live.length;i++){
     var e=el(live[i]);
     e.addEventListener('input', render);
@@ -532,7 +622,7 @@ if(typeof document!=='undefined' && document.getElementById){
 }
 
 if(typeof module!=='undefined' && module.exports){
-  module.exports = { parseRosterLine, parseRoster, toKanjiNumerals, isGradeToken,
+  module.exports = { parseRosterLine, parseRoster, toKanjiNumerals, isGradeToken, normalizeGrade,
                      computeStripLayout, planPages, PAPERS, NAME_GAP_RATIO, MIN_BOTTOM, WIDTH_RATIO, AUTO_MAX_STRIP,
                      MARGIN_TOPBOT, MARGIN_SIDE };
 }
